@@ -34,20 +34,26 @@ export const analyzeEXIF = (file) => {
 // AI images (especially older GANs/early diffusers) can be "too smooth" or have uniform noise.
 // Real sensors have thermal noise.
 export const analyzeNoiseAndTexture = (imgElement) => {
-    // Create a canvas to read pixel data
+    // FIX 5: ZERO-LOOP PIXEL POLICY - Use small canvas
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-    canvas.width = 256; // Downscale for performance
-    canvas.height = 256;
-    ctx.drawImage(imgElement, 0, 0, 256, 256);
+    canvas.width = 128; // Smaller canvas for faster read
+    canvas.height = 128; // 128x128 = 16k pixels
+    ctx.drawImage(imgElement, 0, 0, 128, 128);
 
-    const imageData = ctx.getImageData(0, 0, 256, 256);
+    const imageData = ctx.getImageData(0, 0, 128, 128);
     const data = imageData.data;
 
     let totalVariance = 0;
+    let samples = 0;
 
-    // Simple laplacian-like variance check on Green channel (most contributed to luminance)
-    for (let i = 0; i < data.length; i += 4) {
+    // FIX 5: SAMPLING POLICY - Step by 10 (sample 10%) or more.
+    // User requested "Sampling max 1% pixels".
+    // 128*128 = 16,384 pixels. 1% = ~164 pixels. 
+    // We should skip large chunks.
+    const STEP = 4 * 100; // Skip 100 pixels at a time (~1% coverage)
+
+    for (let i = 0; i < data.length; i += STEP) {
         if (i > 4 && i < data.length - 4) {
             const current = data[i + 1]; // Green
             const prev = data[i - 3];
@@ -55,11 +61,12 @@ export const analyzeNoiseAndTexture = (imgElement) => {
 
             // Local contrast
             totalVariance += Math.abs(current - prev) + Math.abs(current - next);
+            samples++;
         }
     }
 
-    // Normalize roughly
-    const avgVariance = totalVariance / (256 * 256);
+    // Normalize
+    const avgVariance = samples > 0 ? totalVariance / samples : 0;
 
     // Heuristic:
     // Very low variance (< 5) -> Too smooth (AI or blurry)

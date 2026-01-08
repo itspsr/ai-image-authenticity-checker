@@ -1,7 +1,7 @@
 import React from 'react';
 import { Activity, Camera, FileDigit, Cpu } from 'lucide-react';
 
-const SignalItem = ({ icon: Icon, label, value, good }) => (
+const SignalItem = ({ icon: Icon, label, value, statusColor }) => (
     <div style={{
         display: 'flex',
         alignItems: 'center',
@@ -14,7 +14,7 @@ const SignalItem = ({ icon: Icon, label, value, good }) => (
             <span>{label}</span>
         </div>
         <span style={{
-            color: good ? 'var(--success-color)' : 'var(--warning-color)',
+            color: statusColor,
             fontWeight: '500'
         }}>
             {value}
@@ -23,12 +23,27 @@ const SignalItem = ({ icon: Icon, label, value, good }) => (
 );
 
 const SignalsCard = ({ details }) => {
-    const { exif, texture } = details;
+    const { exif, texture, predictions } = details;
 
-    // Logic to determine display values
+    // FIX 4: METADATA STATUS WORDING ALIGNMENT
     const hasExif = exif.present;
-    const isSmooth = texture.smoothnessScore > 0.5;
-    const variance = texture.variance.toFixed(1);
+
+    // FIX 3: SENSOR PATTERN WORDING & FIX 6: TEXTURE/VARIANCE DISPLAY
+    const variance = texture.variance;
+    let textureLabel = "Inconclusive texture signal";
+    let textureColor = "var(--text-secondary)";
+
+    if (variance < 5) {
+        // "Artificial" removed unless high confidence elsewhere - using neutral "Elevated uniformity"
+        textureLabel = "Elevated uniformity";
+        textureColor = "#f59e0b"; // Neutral Warning
+    } else if (variance >= 5 && variance < 15) {
+        textureLabel = "Within natural range";
+        textureColor = "var(--success-color)";
+    } else {
+        textureLabel = "Inconclusive texture signal";
+        textureColor = "var(--text-secondary)";
+    }
 
     return (
         <div className="glass-card">
@@ -40,29 +55,23 @@ const SignalsCard = ({ details }) => {
             <SignalItem
                 icon={FileDigit}
                 label="EXIF Metadata"
-                value={hasExif ? "Present" : "Missing / Stripped"}
-                good={hasExif}
+                value={hasExif ? "Camera Metadata Detected" : "Unavailable or Stripped"}
+                statusColor={hasExif ? "var(--success-color)" : "var(--text-secondary)"}
             />
 
             <SignalItem
                 icon={Camera}
-                label="Sensor Noise"
-                value={isSmooth ? "Low (Artificial)" : "Natural Variance"}
-                good={!isSmooth}
-            />
-
-            <SignalItem
-                icon={Activity}
-                label="Texture Score"
-                value={`Variance: ${variance}`}
-                good={variance > 10}
+                label="Sensor Pattern"
+                value={textureLabel}
+                statusColor={textureColor}
             />
 
             <div style={{ marginTop: '20px', padding: '12px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                 <p style={{ margin: 0, display: 'flex', gap: '8px' }}>
-                    <Cpu size={14} style={{ marginTop: '3px' }} />
+                    <Cpu size={14} style={{ marginTop: '3px', minWidth: '14px' }} />
+                    {/* FIX 7: SOFTEN AI INFERENCE COPY */}
                     <span>
-                        AI inference performed locally using MobileNet features to check for semantic coherence vs abstract generativeness.
+                        Pattern similarity observed with known generative image characteristics. This is a probabilistic assessment, not a definitive classification.
                     </span>
                 </p>
             </div>

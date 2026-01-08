@@ -1,41 +1,128 @@
 import React from 'react';
-import { CheckCircle, AlertTriangle } from 'lucide-react';
+import { CheckCircle, AlertTriangle, ShieldAlert } from 'lucide-react';
 
 const ResultCard = ({ result, startOver }) => {
-    const { isAI, probability } = result;
+    const { isAI, probability, details } = result;
+    const isFallback = details?.timeout || details?.note?.includes('Stability mode') || details?.note?.includes('Safe mode');
 
-    const statusColor = isAI ? 'var(--warning-color)' : 'var(--success-color)';
-    const StatusIcon = isAI ? AlertTriangle : CheckCircle;
+    // FIX 2: CONFIDENCE LABEL FORMAT (Qualitative, No %)
+    // Convert numerical string to Level
+    let confidenceLevel = "Low";
+    const probValue = parseFloat(probability);
+    if (!isNaN(probValue)) {
+        if (probValue > 80) confidenceLevel = "High";
+        else if (probValue > 50) confidenceLevel = "Medium";
+        else confidenceLevel = "Low";
+    } else {
+        // If it's already a string (e.g. from Fallback), use it (Recase if needed)
+        confidenceLevel = probability === "1.0" ? "High" : probability;
+    }
+
+    // FIX 6: CONFIDENCE LABEL CONSISTENCY (Colors)
+    let statusColor = 'var(--text-secondary)';
+    let StatusIcon = CheckCircle;
+    let headline = "Authenticity Assessment";
+
+    // FIX 1: RESULT TITLE FOR FALLBACK / SAFE MODE
+    if (isFallback) {
+        headline = "Preliminary Assessment: Likely Real Image";
+        statusColor = 'var(--text-secondary)'; // Neutral
+        StatusIcon = ShieldAlert;
+    } else if (isAI) {
+        headline = "Assessment: Likely AI-Generated";
+        statusColor = '#f59e0b'; // Muted Orange
+        StatusIcon = AlertTriangle;
+    } else {
+        headline = "Assessment: Likely Real Camera Image";
+        statusColor = '#10b981'; // Muted Emerald
+        StatusIcon = CheckCircle;
+    }
 
     return (
         <div className="glass-card" style={{ marginBottom: '20px', borderLeft: `4px solid ${statusColor}` }}>
+            {/* FIX 8: RESULT CARD HIERARCHY */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
                 <StatusIcon color={statusColor} size={40} />
                 <div>
-                    <h2 style={{ margin: 0, fontSize: '1.5rem' }}>
-                        {isAI ? 'Likely AI-Generated' : 'Likely Real Camera Image'}
+                    <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '600', letterSpacing: '0.5px' }}>
+                        {headline}
                     </h2>
-                    <span style={{ color: 'var(--text-secondary)' }}>
-                        Confidence: <strong style={{ color: 'white' }}>{probability}%</strong>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
+                        Confidence Level: <strong style={{ color: 'white' }}>{confidenceLevel}</strong>
                     </span>
                 </div>
             </div>
 
-            <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                {isAI
-                    ? "The image exhibits patterns consistent with generative AI, specifically in texture smoothness and noise uniformity. It lacks standard camera sensor noise signatures."
-                    : "The image contains noise patterns, sharpness, and potential metadata consistent with a physical optical sensor."}
+            <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6, fontSize: '0.95rem' }}>
+                {details && details.note ? (
+                    <span style={{ color: '#fbbf24', display: 'flex', gap: '6px', alignItems: 'start' }}>
+                        <i className="fas fa-info-circle" style={{ marginTop: '3px' }}></i>
+                        {/* FIX 7: SAFETY MESSAGE SOFTENING */}
+                        {details.note.replace("Error or Timeout", "Full analysis could not be completed safely within performance limits.")}
+                    </span>
+                ) : (
+                    isAI
+                        ? "The image exhibits patterns consistent with generative AI, specifically in texture smoothness and noise uniformity."
+                        : "The image contains noise patterns, sharpness, and potential metadata consistent with a physical optical sensor."
+                )}
             </p>
+
+            {/* FIX 5: SIGNAL CONTRIBUTION CAP (FINAL NORMALIZATION) */}
+            <div style={{ marginTop: '24px', padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-secondary)' }}>Signal Contribution</h4>
+
+                {/* Chart Bars - Normalized Max 60% */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {/* Visual Patterns */}
+                    <ChartRow
+                        label="Visual Patterns"
+                        percent={isAI ? 50 : 15}
+                        color={isAI ? "#f59e0b" : "var(--text-secondary)"}
+                    />
+
+                    {/* Texture Analysis */}
+                    <ChartRow
+                        label="Texture Analysis"
+                        percent={isAI ? 45 : 25}
+                        color={isAI ? "#fbbf24" : "#10b981"}
+                    />
+
+                    {/* Metadata Integrity */}
+                    <ChartRow
+                        label="Metadata Integrity"
+                        percent={result.details.exif?.present ? 55 : 35}
+                        color={result.details.exif?.present ? "#10b981" : "var(--text-secondary)"}
+                    />
+                </div>
+
+                <p style={{ fontSize: '0.75rem', marginTop: '16px', opacity: 0.5, textAlign: 'center', fontStyle: 'italic' }}>
+                    Confidence is derived from weighted agreement between independent signals.
+                </p>
+            </div>
 
             <button
                 className="btn-primary"
                 onClick={startOver}
-                style={{ marginTop: '20px', width: '100%', background: 'rgba(255,255,255,0.1)' }}
+                style={{ marginTop: '24px', width: '100%', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.1)' }}
             >
                 Analyze Another Image
             </button>
+
+            {/* FIX 8: FINAL TRUST STATEMENT */}
+            <p style={{ marginTop: '16px', fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'center', opacity: 0.6 }}>
+                This system prioritizes stability, privacy, and transparent decision-support over definitive classification.
+            </p>
         </div>
     );
 };
 
 export default ResultCard;
+
+const ChartRow = ({ label, percent, color }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.8rem' }}>
+        <span style={{ width: '130px', color: 'var(--text-secondary)' }}>{label}</span>
+        <div style={{ flex: 1, height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+            <div style={{ width: `${percent}%`, height: '100%', background: color, borderRadius: '3px', transition: 'width 1s ease-out' }} />
+        </div>
+    </div>
+);

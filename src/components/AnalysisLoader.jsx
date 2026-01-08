@@ -1,7 +1,7 @@
 import React from 'react';
 import { Scan } from 'lucide-react';
 
-const AnalysisLoader = () => {
+const AnalysisLoader = ({ progress = 0 }) => {
     return (
         <div className="glass-card" style={{ textAlign: 'center', padding: '60px 20px' }}>
             <div className="scan-animation" style={{
@@ -26,7 +26,31 @@ const AnalysisLoader = () => {
                 }} />
             </div>
             <h3 style={{ margin: '0 0 10px 0' }}>Analyzing Image Patterns...</h3>
-            <p style={{ color: 'var(--text-secondary)' }}>Checking noise, metadata, and visual consistency.</p>
+
+            {/* Progress Bar */}
+            <div style={{
+                width: '100%',
+                maxWidth: '300px',
+                height: '6px',
+                background: 'rgba(255,255,255,0.1)',
+                borderRadius: '3px',
+                margin: '15px auto',
+                overflow: 'hidden'
+            }}>
+                <div style={{
+                    height: '100%',
+                    width: `${progress}%`,
+                    background: 'var(--accent-color)',
+                    transition: 'width 0.3s ease-out',
+                    boxShadow: '0 0 8px var(--accent-glow)'
+                }} />
+            </div>
+
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                {progress < 30 ? "Optimizing image..." :
+                    progress < 70 ? "Checking texture & metadata..." :
+                        "Finalizing score..."}
+            </p>
 
             <style>{`
         @keyframes scan {

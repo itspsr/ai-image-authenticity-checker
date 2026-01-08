@@ -1,16 +1,18 @@
 import React, { useCallback } from 'react';
 import { Upload, Image as ImageIcon } from 'lucide-react';
 
-const UploadZone = ({ onFileSelect }) => {
+const UploadZone = ({ onFileSelect, disabled }) => {
 
     const handleDrop = (e) => {
         e.preventDefault();
+        if (disabled) return;
         if (e.dataTransfer.files && e.dataTransfer.files[0]) {
             onFileSelect(e.dataTransfer.files[0]);
         }
     };
 
     const handleChange = (e) => {
+        if (disabled) return;
         if (e.target.files && e.target.files[0]) {
             onFileSelect(e.target.files[0]);
         }
@@ -25,18 +27,21 @@ const UploadZone = ({ onFileSelect }) => {
                 textAlign: 'center',
                 padding: '60px 20px',
                 border: '2px dashed var(--glass-border)',
-                cursor: 'pointer',
-                transition: 'all 0.3s ease'
+                cursor: disabled ? 'not-allowed' : 'pointer',
+                transition: 'all 0.3s ease',
+                opacity: disabled ? 0.5 : 1,
+                pointerEvents: disabled ? 'none' : 'auto'
             }}
         >
             <input
                 type="file"
-                accept="image/*"
+                accept=".jpg,.jpeg,.png"
                 onChange={handleChange}
                 style={{ display: 'none' }}
                 id="file-upload"
+                disabled={disabled}
             />
-            <label htmlFor="file-upload" style={{ cursor: 'pointer' }}>
+            <label htmlFor="file-upload" style={{ cursor: disabled ? 'not-allowed' : 'pointer' }}>
                 <div style={{
                     width: '80px',
                     height: '80px',
