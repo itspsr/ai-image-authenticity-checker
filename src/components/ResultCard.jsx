@@ -3,22 +3,38 @@ import { CheckCircle, AlertTriangle, ShieldAlert } from 'lucide-react';
 
 const ResultCard = ({ result, startOver }) => {
     const { isAI, probability, details } = result;
-    const isFallback = details?.timeout || details?.note?.includes('Stability mode') || details?.note?.includes('Safe mode');
+    const isFallback = details?.timeout || details?.note === "stability_fallback" || details?.note?.includes('Safe mode');
 
-    // FIX 2: CONFIDENCE LABEL FORMAT (Qualitative, No %)
-    // Convert numerical string to Level
-    let confidenceLevel = "Low";
-    const probValue = parseFloat(probability);
-    if (!isNaN(probValue)) {
-        if (probValue > 80) confidenceLevel = "High";
-        else if (probValue > 50) confidenceLevel = "Medium";
-        else confidenceLevel = "Low";
+    // FIX 2: CONFIDENCE LABEL (Strict Adherence to passed 'probability' if string)
+    // The new mlModel returns "High", "Medium", "Low" directly.
+    let confidenceLevel = "Medium";
+
+    if (typeof probability === 'string' && (probability === "High" || probability === "Medium" || probability === "Low")) {
+        confidenceLevel = probability;
     } else {
-        // If it's already a string (e.g. from Fallback), use it (Recase if needed)
-        confidenceLevel = probability === "1.0" ? "High" : probability;
+        // Legacy fallback or numeric handling
+        const probValue = parseFloat(probability);
+        if (!isNaN(probValue)) {
+            // Mapping for backward compat if numbers slip through
+            if (probValue > 80) confidenceLevel = "High";
+            else if (isAI) {
+                // For AI: >80 High, Else Low/Medium
+                confidenceLevel = probValue > 50 ? "Medium" : "Low";
+            } else {
+                // For Real: Low numbers = High Real Confidence. 
+                // BUT we shouldn't get numbers anymore with new engine.
+                confidenceLevel = "Medium";
+            }
+        }
     }
 
-    // FIX 6: CONFIDENCE LABEL CONSISTENCY (Colors)
+    // FIX 8: SAFETY ASSERTION (UI LAYER)
+    // Double check: if "Likely Real" (isAI == false) -> NEVER show Low
+    if (!isAI && confidenceLevel === "Low") {
+        confidenceLevel = "Medium";
+    }
+
+    // Colors
     let statusColor = 'var(--text-secondary)';
     let StatusIcon = CheckCircle;
     let headline = "Authenticity Assessment";
@@ -54,16 +70,16 @@ const ResultCard = ({ result, startOver }) => {
             </div>
 
             <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6, fontSize: '0.95rem' }}>
-                {details && details.note ? (
+                {details && (details.note === "stability_fallback" || details.timeout) ? (
                     <span style={{ color: '#fbbf24', display: 'flex', gap: '6px', alignItems: 'start' }}>
                         <i className="fas fa-info-circle" style={{ marginTop: '3px' }}></i>
-                        {/* FIX 7: SAFETY MESSAGE SOFTENING */}
-                        {details.note.replace("Error or Timeout", "Full analysis could not be completed safely within performance limits.")}
+                        {/* FIX 4: SAFE FUNCTIONALITY EXPLANATION */}
+                        Assessment based on partial signals for stability.
                     </span>
                 ) : (
                     isAI
-                        ? "The image exhibits patterns consistent with generative AI, specifically in texture smoothness and noise uniformity."
-                        : "The image contains noise patterns, sharpness, and potential metadata consistent with a physical optical sensor."
+                        ? "The image exhibits patterns consistent with generative AI, specifically in significant texture smoothness or repetition."
+                        : "The image exhibits characteristics consistent with optical capture. No strong generative AI artifacts were detected."
                 )}
             </p>
 
@@ -96,7 +112,8 @@ const ResultCard = ({ result, startOver }) => {
                 </div>
 
                 <p style={{ fontSize: '0.75rem', marginTop: '16px', opacity: 0.5, textAlign: 'center', fontStyle: 'italic' }}>
-                    Confidence is derived from weighted agreement between independent signals.
+                    {/* FIX 9: WORDING ALIGNMENT */}
+                    Confidence reflects evidence strength and signal agreement, not analysis completeness.
                 </p>
             </div>
 

@@ -43,47 +43,118 @@ export const classifyImage = async (imgElement) => {
 };
 
 // This function acts as the "Fake" AI Generator Detector using the features
-export const computeAILikelihood = (predictions, forensics) => {
-    // Start with forensics
-    let aiScore = 0;
+// This function implements the "GOD-MODE" Confidence Decision Table
+export const calculateAuthenticity = (predictions, forensics) => {
+    // 1. Define "Strong AI Indicators" (Fix 2)
+    // Only these qualify as strong evidence of AI
+    const strongAIIndicators = {
+        repeatingTexture: forensics.texture.variance < 5, // Extremely low variance = uniform
+        overSmooth: forensics.texture.smoothnessScore > 0.8, // Very smooth
+        suspiciousUniformity: forensics.texture.smoothnessScore > 0.6 && forensics.texture.variance < 20,
+        modelConfidenceInArtificial: false // Calculated below
+    };
 
-    // 1. Forensics Impact (30% weight)
-    // If metadata is present (Real), reduce AI score.
-    if (forensics.exif.present && forensics.exif.tags.Make) {
-        aiScore -= 0.3;
-    } else {
-        // Missing metadata is suspicious but common in web images
-        aiScore += 0.1;
-    }
-
-    // Texture smoothness (AI is often smooth)
-    aiScore += (forensics.texture.smoothnessScore * 0.3);
-
-    // 2. Model "Uncertainty" (70% weight)
-    // If the object detector is VERY confident (e.g. 90% "Cat"), it's likely a clear object.
-    // AI images are also clear, BUT often have slightly lower confidence on specific real-world textures 
-    // or match multiple classes weirdly.
-    // *TRICK*: We will use a hash of the image pixel data (via variance/size) to determinstically 
-    // bias the score so it feels "analyzed" but isn't just random.
-
-    // Base baseline
-    let modelLikelihood = 0.4;
-
+    // Check Model Predictions
     const topPred = predictions[0];
-    if (topPred && topPred.probability > 0.8) {
-        // High confidence object -> Could be real or very good AI.
-        // Let's bias slightly towards real if it's a "natural" object.
-        modelLikelihood -= 0.1;
-    } else {
-        // Low confidence -> Abstract or weird -> likely AI
-        modelLikelihood += 0.2;
+    // If model is very confident about something abstract or typically "clean" like 'web site' or 'velvet'
+    if (topPred && topPred.probability > 0.85) {
+        // Arbitrary heuristic for "Artificial" looking class confidence
+        // In a real system, this would be a specific "Artificial" class
+        strongAIIndicators.modelConfidenceInArtificial = false;
     }
 
-    // Final clamp
-    let finalScore = modelLikelihood + aiScore;
+    const hasStrongAIArtifacts =
+        strongAIIndicators.repeatingTexture ||
+        strongAIIndicators.overSmooth ||
+        strongAIIndicators.suspiciousUniformity;
 
-    // Inject some deterministic "randomness" to vary it between 20% and 80% if it's middle ground
-    // This ensures the demo isn't boring (always saying 50%).
+    // 2. Analyze "Real Image Signals"
+    const realSignals = {
+        metadataPresent: forensics.exif && forensics.exif.present && !!forensics.exif.tags.Make,
+        sensorNoiseDerived: forensics.texture.variance > 50, // High variance often means natural noise
+        naturalTexture: forensics.texture.smoothnessScore < 0.4
+    };
 
-    return Math.max(0.01, Math.min(0.99, finalScore));
+    const hasRealSignals = realSignals.metadataPresent || realSignals.sensorNoiseDerived || realSignals.naturalTexture;
+
+    // 3. Determine Base Classification (Likely AI vs Likely Real)
+    // Default to Real unless strong evidence exists
+    let isAI = false;
+
+    if (hasStrongAIArtifacts) {
+        isAI = true;
+    } else if (hasRealSignals) {
+        isAI = false;
+    } else {
+        // Weak signals? 
+        // Bias towards Real for photos, but if it's purely generic, we might lean AI if smoothness is high-ish
+        if (forensics.texture.smoothnessScore > 0.55) isAI = true;
+        else isAI = false;
+    }
+
+    // 4. Calculate Confidence Level (Fix 1: Class-Dependent)
+    let confidenceLevel = "Medium"; // Default starting point
+
+    if (isAI) {
+        // Scenario: AI Image
+        if (hasStrongAIArtifacts) {
+            confidenceLevel = "High"; // Strong artifacts = High Confidence AI
+        } else {
+            // AI detected but signals are weak (e.g. just slightly smooth)
+            confidenceLevel = "Low"; // Mixed signals
+        }
+    } else {
+        // Scenario: Real Image
+        // FIX 3: REAL CAMERA IMAGE CONFIDENCE FLOOR
+        // If it looks real, it's at least Medium. Never Low unless conflicting.
+
+        if (realSignals.metadataPresent && realSignals.naturalTexture) {
+            confidenceLevel = "High"; // Strong real signals
+        } else if (hasRealSignals) {
+            confidenceLevel = "Medium"; // Has some real signals (e.g. noise) but maybe no metadata
+        } else {
+            // No strong real signals, but no AI artifacts either.
+            // "Innocent until proven guilty" -> Likely Real
+            // But we are unsure.
+            confidenceLevel = "Medium"; // FIX: Do not use Low for "lack of evidence" if defaulting to Real.
+        }
+
+        // Only drop to Low if there are actually CONTRADICTING signals
+        // e.g. Metadata is present (Real) BUT texture is super smooth (AI)
+        if (realSignals.metadataPresent && forensics.texture.smoothnessScore > 0.7) {
+            confidenceLevel = "Low";
+        }
+    }
+
+    // FIX 8: LOGICAL ASSERTION
+    // If "Likely Real", Confidence MUST NOT be Low
+    if (!isAI && confidenceLevel === "Low") {
+        console.warn("Auto-correcting Real Image Confidence from Low to Medium per safety policy.");
+        confidenceLevel = "Medium";
+    }
+
+    // Generate numeric probability for backward compatibility / charts
+    // High AI = 0.9, Medium AI = 0.7, Low AI = 0.55
+    // High Real = 0.1, Medium Real = 0.3, Low Real = 0.45 (But we floor Low Real to Medium Real usually)
+
+    let score = 0.5;
+    if (isAI) {
+        if (confidenceLevel === "High") score = 0.92;
+        else if (confidenceLevel === "Medium") score = 0.75;
+        else score = 0.55;
+    } else {
+        if (confidenceLevel === "High") score = 0.05; // Very Real
+        else if (confidenceLevel === "Medium") score = 0.25;
+        else score = 0.45;
+    }
+
+    return {
+        isAI,
+        confidenceLevel,
+        score,
+        details: {
+            strongAIIndicators,
+            realSignals
+        }
+    };
 };

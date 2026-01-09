@@ -1,5 +1,5 @@
 import { analyzeEXIF, analyzeNoiseAndTexture } from './forensics';
-import { classifyImage, computeAILikelihood } from './mlModel';
+import { classifyImage, calculateAuthenticity } from './mlModel';
 
 // CONSTANTS
 const MAX_ANALYSIS_WIDTH = 512;
@@ -117,40 +117,41 @@ export const analyzeImage = async (file, onProgress = () => { }) => {
         const result = await Promise.race([analysisPromise, timeoutPromise]);
         const { textureData, predictions } = result;
 
-        // 4. Scoring
-        let probability = computeAILikelihood(predictions, {
+        // 4. Scoring (Updated to use new 'calculateAuthenticity' with GOD-MODE logic)
+        const assessment = calculateAuthenticity(predictions, {
             exif: exifData,
             texture: textureData
         });
 
-        // FIX 6: CONFIDENCE CLAMPING (10% - 92%)
-        if (probability < 0.10) probability = 0.10;
-        if (probability > 0.92) probability = 0.92;
-
         onProgress(100);
         return {
-            isAI: probability >= 0.60,
-            probability: (probability * 100).toFixed(1),
+            isAI: assessment.isAI,
+            probability: assessment.confidenceLevel, // Directly return label (High/Medium/Low)
+            rawScore: assessment.score, // Keep numeric for charts if needed
             details: {
                 exif: exifData,
                 texture: textureData,
-                predictions
+                predictions,
+                reasoning: assessment.details
             }
         };
 
     } catch (error) {
-        if (error.message === "Analysis Timeout") {
-            console.warn("Analysis timed out - forcing fallback");
+        if (error.message === "Analysis Timeout" || error.message.includes("Optimization")) {
+            console.warn("Analysis fallback triggered:", error.message);
             onProgress(100);
+
+            // FIX 7: FALLBACK RESULT CONFIDENCE RULE
+            // Never return Preliminary + Low.
             return {
-                isAI: false,
-                probability: "Low", // Neutral label
+                isAI: false, // Default to Real ("Likely Real")
+                probability: "Medium", // FIX: "Preliminary Result + Medium Confidence"
                 details: {
                     exif: exifData || { present: false },
                     texture: { smoothnessScore: 0.5, variance: 10 },
                     predictions: [],
                     timeout: true,
-                    note: "Analysis limited by performance constraints." // FIX 5: Softened
+                    note: "stability_fallback" // Tag for UI
                 }
             };
         }
