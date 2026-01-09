@@ -159,9 +159,9 @@ const ResultCard = ({ result, startOver }) => {
                 Analyze Another Image
             </button>
 
-            {/* MANDATORY TRUST STATEMENT */}
+            {/* MANDATORY TRUST STATEMENT / VALIDATION MESSAGE */}
             <p style={{ marginTop: '16px', fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'center', opacity: 0.6 }}>
-                Detection is based on device metadata and visual consistency.
+                {result.validationMessage || "Detection is based on device metadata and visual consistency."}
             </p>
         </div>
     );
