@@ -1,12 +1,14 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import Navbar from './components/Navbar';
 import UploadZone from './components/UploadZone';
 import AnalysisLoader from './components/AnalysisLoader';
 import ResultCard from './components/ResultCard';
 import SignalsCard from './components/SignalsCard';
+import RefundReviewCard from './components/RefundReviewCard'; // NEW IMPORT
 import Disclaimer from './components/Disclaimer';
 import { analyzeImage } from './utils/analysisEngine';
 import { analyzeEXIF } from './utils/forensics'; // For Safe Mode
+import { calculateRefundRisk } from './utils/refundEngine'; // NEW IMPORT
 
 function App() {
   const [file, setFile] = useState(null);
@@ -113,6 +115,12 @@ function App() {
     setProgress(0);
   };
 
+  // Calculate Refund Risk whenever result changes
+  const refundData = useMemo(() => {
+    if (!result) return null;
+    return calculateRefundRisk(result);
+  }, [result]);
+
   return (
     <>
       <div className="container" style={{ paddingBottom: '60px' }}>
@@ -161,6 +169,10 @@ function App() {
           {result && !analyzing && (
             <div className="fade-in">
               <ResultCard result={result} startOver={handleStartOver} />
+
+              {/* NEW REFUND REVIEW SECTION */}
+              <RefundReviewCard refundData={refundData} />
+
               <SignalsCard details={result.details} />
             </div>
           )}
@@ -169,7 +181,6 @@ function App() {
 
           {/* Informational Sections */}
           <div style={{ marginTop: '80px', color: 'var(--text-secondary)' }}>
-
             <section style={{ marginBottom: '40px' }}>
               <h3 style={{ color: 'white' }}>How it Works</h3>
               <p>
@@ -177,7 +188,6 @@ function App() {
                 {safeMode ? " Currently running in Safe Mode (Metadata only)." : " Uses local ML and forensic analysis directly in your browser."}
               </p>
             </section>
-
             <section style={{ marginBottom: '40px' }}>
               <h3 style={{ color: 'white' }}>About</h3>
               <p>
@@ -186,7 +196,6 @@ function App() {
                 Enterprise deployments typically extend this with server-side deep learning models.
               </p>
             </section>
-
             <section style={{ marginBottom: '60px' }}>
               <h3 style={{ color: 'white' }}>Terms & Conditions</h3>
               <ul style={{ paddingLeft: '20px', lineHeight: '1.6' }}>
@@ -196,8 +205,8 @@ function App() {
                 <li>By using this tool, you agree it is for demonstration purposes only.</li>
               </ul>
             </section>
-
           </div>
+
         </main>
 
         <footer style={{
@@ -214,11 +223,10 @@ function App() {
             <a href="https://linkedin.com/in/data-by-pratik" style={{ color: 'inherit', margin: '0 10px' }}>LinkedIn</a>
           </div>
           <p style={{ opacity: 0.5, fontSize: '0.8rem', marginTop: '10px' }}>
-            v1.1 Hardened • Images are resized/analyzed locally.
+            v1.2 Refund Secure • Refund Intelligence Active
           </p>
         </footer>
       </div>
-
       <style>{`
         .fade-in {
           animation: fadeIn 0.5s ease-out forwards;
