@@ -76,32 +76,69 @@ const ResultCard = ({ result, startOver }) => {
                 )}
             </p>
 
+            {/* CAPTURE SOURCE (INFERRED) */}
+            {result.captureSource && (
+                <div style={{ margin: '20px 0', padding: '12px 16px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', borderLeft: '3px solid var(--text-secondary)' }}>
+                    <h4 style={{ margin: '0 0 4px 0', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px', opacity: 0.7 }}>Capture Source (Inferred)</h4>
+                    <div style={{ fontSize: '1.1rem', fontWeight: '500', color: '#fff' }}>
+                        {result.captureSource.category}
+                        {result.captureSource.subCategory && <span style={{ fontSize: '0.9rem', opacity: 0.8, marginLeft: '8px', fontWeight: 'normal' }}>({result.captureSource.subCategory})</span>}
+                    </div>
+                </div>
+            )}
+
             {/* FIX 5: SIGNAL CONTRIBUTION CAP (FINAL NORMALIZATION) */}
             <div style={{ marginTop: '24px', padding: '16px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
                 <h4 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-secondary)' }}>Signal Contribution</h4>
 
                 {/* Chart Bars - Normalized Max 60% */}
+                {/* Chart Bars - Visualizing the 4 Key Pillars */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {/* Visual Patterns */}
-                    <ChartRow
-                        label="Visual Patterns"
-                        percent={isAI ? 50 : 15}
-                        color={isAI ? "#f59e0b" : "var(--text-secondary)"}
-                    />
 
-                    {/* Texture Analysis */}
-                    <ChartRow
-                        label="Texture Analysis"
-                        percent={isAI ? 45 : 25}
-                        color={isAI ? "#fbbf24" : "#10b981"}
-                    />
+                    {/* 1. SENSOR NOISE */}
+                    {details.noise ? (
+                        <ChartRow
+                            label="Sensor Noise"
+                            percent={details.noise.hasSensorNoise ? 70 : 20}
+                            color={details.noise.hasSensorNoise ? "#10b981" : "var(--text-secondary)"}
+                        />
+                    ) : (
+                        <ChartRow label="Texture Analysis" percent={isAI ? 45 : 25} color={isAI ? "#fbbf24" : "#10b981"} />
+                    )}
 
-                    {/* Metadata Integrity */}
+                    {/* 2. FREQUENCY (DCT) */}
+                    {details.dct && (
+                        <ChartRow
+                            label="Frequency Decay"
+                            percent={details.dct.isNaturalDecay ? 65 : 30}
+                            color={details.dct.isNaturalDecay ? "#10b981" : "#f59e0b"} // Green (Natural) vs Orange (Artificial)
+                        />
+                    )}
+
+                    {/* 3. RESIDUALS */}
+                    {details.residuals && (
+                        <ChartRow
+                            label="Compression Residuals"
+                            percent={details.residuals.isChaotic ? 60 : 25}
+                            color={details.residuals.isChaotic ? "#10b981" : "var(--text-secondary)"}
+                        />
+                    )}
+
+                    {/* 4. METADATA */}
                     <ChartRow
                         label="Metadata Integrity"
-                        percent={result.details.exif?.present ? 55 : 35}
-                        color={result.details.exif?.present ? "#10b981" : "var(--text-secondary)"}
+                        percent={details.exif?.present ? 55 : 35}
+                        color={details.exif?.present ? "#10b981" : "var(--text-secondary)"}
                     />
+
+                    {/* 5. STRUCTURE (If suspicious) */}
+                    {details.structure && details.structure.isScreenshot && (
+                        <ChartRow
+                            label="Screenshot Traits"
+                            percent={85}
+                            color="#ef4444"
+                        />
+                    )}
                 </div>
 
                 <p style={{ fontSize: '0.75rem', marginTop: '16px', opacity: 0.5, textAlign: 'center', fontStyle: 'italic' }}>
@@ -120,7 +157,7 @@ const ResultCard = ({ result, startOver }) => {
 
             {/* MANDATORY TRUST STATEMENT */}
             <p style={{ marginTop: '16px', fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'center', opacity: 0.6 }}>
-                This system prioritizes evidence-based confidence, user fairness, and decision support over definitive classification.
+                Capture source inference is probabilistic and based on visual patterns. This system prioritizes evidence-based confidence, user fairness, and decision support over definitive classification.
             </p>
         </div>
     );

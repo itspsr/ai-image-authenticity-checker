@@ -1,4 +1,4 @@
-import { analyzeEXIF, analyzeNoiseAndTexture, analyzeStructure } from './forensics';
+import { analyzeEXIF, analyzeNoise, analyzeDCT, analyzeResiduals, analyzeStructure } from './forensics';
 import { classifyImage, calculateAuthenticity } from './mlModel';
 
 // CONSTANTS
