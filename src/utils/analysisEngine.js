@@ -1,4 +1,4 @@
-import { analyzeEXIF, analyzeNoiseAndTexture } from './forensics';
+import { analyzeEXIF, analyzeNoiseAndTexture, analyzeStructure } from './forensics';
 import { classifyImage, calculateAuthenticity } from './mlModel';
 
 // CONSTANTS
@@ -86,27 +86,33 @@ export const analyzeImage = async (file, onProgress = () => { }) => {
         onProgress(100);
         return {
             isAI: false,
-            probability: "92.0", // FIX 6: Clamped Max Confidence (Never 100%)
+            probability: "High",
+            rawScore: 92, // Fixed high score for fast path
             details: {
                 exif: exifData,
                 texture: { smoothnessScore: 0.1, variance: 50 },
+                structure: { isScreenshot: false, isPNG: false },
                 predictions: [{ className: "Fast Path Analysis", probability: 0.92 }],
-                fastPath: true
+                fastPath: true,
+                assessment: "Likely Authentic Camera Image"
             }
         };
     }
 
     // 3. Heavy Analysis Race
     const analysisPromise = (async () => {
-        onProgress(50);
+        onProgress(45); // Stage: Sensor & texture analysis
         // NO LOOP PIXEL POLICY is handled in analyzeNoiseAndTexture implementation
         const textureData = analyzeNoiseAndTexture(optimizedImg);
+
+        onProgress(65); // Stage: Metadata & structure checks
+        const structureData = await analyzeStructure(file, optimizedImg.width, optimizedImg.height);
 
         onProgress(70);
         const predictions = await classifyImage(optimizedImg);
 
-        onProgress(90);
-        return { textureData, predictions };
+        onProgress(85); // Stage: Signal aggregation
+        return { textureData, structureData, predictions };
     })();
 
     const timeoutPromise = new Promise((_, reject) =>
@@ -115,22 +121,25 @@ export const analyzeImage = async (file, onProgress = () => { }) => {
 
     try {
         const result = await Promise.race([analysisPromise, timeoutPromise]);
-        const { textureData, predictions } = result;
+        const { textureData, predictions, structureData } = result;
 
         // 4. Scoring (Updated to use new 'calculateAuthenticity' with GOD-MODE logic)
         const assessment = calculateAuthenticity(predictions, {
             exif: exifData,
-            texture: textureData
+            texture: textureData,
+            structure: structureData
         });
 
-        onProgress(100);
+        onProgress(100); // Result Ready
         return {
             isAI: assessment.isAI,
-            probability: assessment.confidenceLevel, // Directly return label (High/Medium/Low)
-            rawScore: assessment.score, // Keep numeric for charts if needed
+            probability: assessment.confidenceLevel, // "High" | "Medium" | "Low"
+            rawScore: assessment.score, // Integer 0-100
+            assessmentTitle: assessment.assessment, // Pass the official title
             details: {
                 exif: exifData,
                 texture: textureData,
+                structure: structureData,
                 predictions,
                 reasoning: assessment.details
             }

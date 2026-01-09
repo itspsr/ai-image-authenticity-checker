@@ -82,3 +82,35 @@ export const analyzeNoiseAndTexture = (imgElement) => {
         smoothnessScore // Higher means "Likely AI"
     };
 }
+
+// FIX: Structure Analysis for Screenshots & Editing
+export const analyzeStructure = (file, imageWidth, imageHeight) => {
+    return new Promise((resolve) => {
+        const aspect = imageWidth / imageHeight;
+
+        // Common Screenshot Resolutions (Mobile & Desktop)
+        // 19.5:9 (iPhone/New Androids) ~ 2.16
+        // 16:9 ~ 1.77
+        // 9:16 ~ 0.56
+        // 9:19.5 ~ 0.46
+        const isCommonScreenRatio =
+            (Math.abs(aspect - 2.16) < 0.05) ||
+            (Math.abs(aspect - 0.46) < 0.05) ||
+            (Math.abs(aspect - 1.77) < 0.01) ||
+            (Math.abs(aspect - 0.56) < 0.01);
+
+        // PNGs are often screenshots. JPGs are usually cameras.
+        const isPNG = file.type === 'image/png';
+
+        const isScreenshotLikely = isPNG && isCommonScreenRatio;
+
+        // Check for Editing Software in Metadata (if EXIF was read separately, but we can check basic tags here if passed, 
+        // but ideally this is done in the EXIF block. We will resolve simple structure flags here).
+
+        resolve({
+            isScreenshot: isScreenshotLikely,
+            isPNG,
+            aspectRatio: aspect
+        });
+    });
+};

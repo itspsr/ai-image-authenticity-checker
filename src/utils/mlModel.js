@@ -44,117 +44,116 @@ export const classifyImage = async (imgElement) => {
 
 // This function acts as the "Fake" AI Generator Detector using the features
 // This function implements the "GOD-MODE" Confidence Decision Table
+// This function implements the "EVIDENCE-BASED" Confidence Engine
 export const calculateAuthenticity = (predictions, forensics) => {
-    // 1. Define "Strong AI Indicators" (Fix 2)
-    // Only these qualify as strong evidence of AI
-    const strongAIIndicators = {
-        repeatingTexture: forensics.texture.variance < 5, // Extremely low variance = uniform
-        overSmooth: forensics.texture.smoothnessScore > 0.8, // Very smooth
-        suspiciousUniformity: forensics.texture.smoothnessScore > 0.6 && forensics.texture.variance < 20,
-        modelConfidenceInArtificial: false // Calculated below
-    };
+    // UNPACK SIGNALS
+    const { exif, texture, structure } = forensics;
 
-    // Check Model Predictions
-    const topPred = predictions[0];
-    // If model is very confident about something abstract or typically "clean" like 'web site' or 'velvet'
-    if (topPred && topPred.probability > 0.85) {
-        // Arbitrary heuristic for "Artificial" looking class confidence
-        // In a real system, this would be a specific "Artificial" class
-        strongAIIndicators.modelConfidenceInArtificial = false;
-    }
+    // 1. SIGNAL STRENGTH SCORING (0.0 - 1.0)
 
-    const hasStrongAIArtifacts =
-        strongAIIndicators.repeatingTexture ||
-        strongAIIndicators.overSmooth ||
-        strongAIIndicators.suspiciousUniformity;
-
-    // 2. Analyze "Real Image Signals"
-    const realSignals = {
-        metadataPresent: forensics.exif && forensics.exif.present && !!forensics.exif.tags.Make,
-        sensorNoiseDerived: forensics.texture.variance > 50, // High variance often means natural noise
-        naturalTexture: forensics.texture.smoothnessScore < 0.4
-    };
-
-    const hasRealSignals = realSignals.metadataPresent || realSignals.sensorNoiseDerived || realSignals.naturalTexture;
-
-    // 3. Determine Base Classification (Likely AI vs Likely Real)
-    // Default to Real unless strong evidence exists
-    let isAI = false;
-
-    if (hasStrongAIArtifacts) {
-        isAI = true;
-    } else if (hasRealSignals) {
-        isAI = false;
+    // A. Camera Authenticity Signals (Metadata)
+    let cameraSignal = 0;
+    if (exif.present) {
+        if (exif.tags.Make && exif.tags.Model) cameraSignal = 1.0; // Perfect
+        else if (exif.tags.Software) cameraSignal = 0.5; // Edited or minimal
+        else cameraSignal = 0.3; // Bare
     } else {
-        // Weak signals? 
-        // Bias towards Real for photos, but if it's purely generic, we might lean AI if smoothness is high-ish
-        if (forensics.texture.smoothnessScore > 0.55) isAI = true;
-        else isAI = false;
+        cameraSignal = 0.0; // Suspicious
     }
 
-    // 4. Calculate Confidence Level (Fix 1: Class-Dependent)
-    let confidenceLevel = "Medium"; // Default starting point
-
-    if (isAI) {
-        // Scenario: AI Image
-        if (hasStrongAIArtifacts) {
-            confidenceLevel = "High"; // Strong artifacts = High Confidence AI
-        } else {
-            // AI detected but signals are weak (e.g. just slightly smooth)
-            confidenceLevel = "Low"; // Mixed signals
-        }
+    // B. Texture & Noise Integrity
+    let textureSignal = 0;
+    // Variance: <5 (Fake/Blur), 10-40 (Good Trace), >50 (High Noise)
+    // Smoothness: <0.3 (Natural), >0.7 (AI)
+    if (texture.variance > 15 && texture.smoothnessScore < 0.4) {
+        textureSignal = 1.0; // Natural Sensor Noise
+    } else if (texture.variance > 5 && texture.smoothnessScore < 0.6) {
+        textureSignal = 0.6; // Acceptable / Denoised
     } else {
-        // Scenario: Real Image
-        // FIX 3: REAL CAMERA IMAGE CONFIDENCE FLOOR
-        // If it looks real, it's at least Medium. Never Low unless conflicting.
-
-        if (realSignals.metadataPresent && realSignals.naturalTexture) {
-            confidenceLevel = "High"; // Strong real signals
-        } else if (hasRealSignals) {
-            confidenceLevel = "Medium"; // Has some real signals (e.g. noise) but maybe no metadata
-        } else {
-            // No strong real signals, but no AI artifacts either.
-            // "Innocent until proven guilty" -> Likely Real
-            // But we are unsure.
-            confidenceLevel = "Medium"; // FIX: Do not use Low for "lack of evidence" if defaulting to Real.
-        }
-
-        // Only drop to Low if there are actually CONTRADICTING signals
-        // e.g. Metadata is present (Real) BUT texture is super smooth (AI)
-        if (realSignals.metadataPresent && forensics.texture.smoothnessScore > 0.7) {
-            confidenceLevel = "Low";
-        }
+        textureSignal = 0.1; // Too smooth or uniform
     }
 
-    // FIX 8: LOGICAL ASSERTION
-    // If "Likely Real", Confidence MUST NOT be Low
-    if (!isAI && confidenceLevel === "Low") {
-        console.warn("Auto-correcting Real Image Confidence from Low to Medium per safety policy.");
+    // C. Metadata/Structure Consistency
+    let consistencySignal = 0;
+    if (!structure.isScreenshot && !structure.isPNG) {
+        consistencySignal = 1.0; // Likely original file
+    } else if (structure.isPNG && !structure.isScreenshot) {
+        consistencySignal = 0.6; // Saved as PNG but not screen ratio
+    } else {
+        consistencySignal = 0.1; // Screenshot patterns
+    }
+
+    // 2. COMPUTE RAW CONFIDENCE %
+    // Formula: (Camera * 0.6) + (Texture * 0.25) + (Consistency * 0.15)
+    let rawScore = (cameraSignal * 0.6) + (textureSignal * 0.25) + (consistencySignal * 0.15);
+
+    // Convert to percentage (0-100)
+    let percentage = Math.round(rawScore * 100);
+
+    // 3. CLASSIFICATION LOGIC (3-TIER)
+
+    // DEFAULT: Assume Low Trust until proven otherwise
+    let assessment = "Likely Non-Camera Image";
+    let confidenceLevel = "Low";
+
+    // CASE 1: REAL CAMERA IMAGE (High Confidence)
+    // Requirements: High Camera Signal + Good Texture + Not Screenshot
+    const isRealCamera = cameraSignal >= 0.9 && textureSignal >= 0.6 && !structure.isScreenshot;
+
+    // CASE 2: EDITED CAMERA IMAGE (Medium Confidence)
+    // Requirements: Recent Editing Software OR Partial Metadata OR PNG format (but good noise)
+    const isEditedCamera = !isRealCamera && (cameraSignal >= 0.3 || textureSignal >= 0.6) && !structure.isScreenshot;
+
+    if (isRealCamera) {
+        assessment = "Likely Authentic Camera Image";
+        confidenceLevel = "High";
+        // Clamp High Range: 80% - 90%
+        if (percentage < 80) percentage = 80;
+        if (percentage > 90) percentage = 90;
+    } else if (isEditedCamera) {
+        assessment = "Likely Camera Image (Edited)";
         confidenceLevel = "Medium";
+        // Clamp Medium Range: 55% - 70%
+        if (percentage < 55) percentage = 55;
+        if (percentage > 70) percentage = 70;
+    } else {
+        // CASE 3: LOW CONFIDENCE (AI / Screenshot)
+        assessment = "Likely Non-Camera Image";
+        confidenceLevel = "Low";
+        // Clamp Low Range: 15% - 35%
+        if (percentage < 15) percentage = 15;
+        if (percentage > 35) percentage = 35;
     }
 
-    // Generate numeric probability for backward compatibility / charts
-    // High AI = 0.9, Medium AI = 0.7, Low AI = 0.55
-    // High Real = 0.1, Medium Real = 0.3, Low Real = 0.45 (But we floor Low Real to Medium Real usually)
-
-    let score = 0.5;
-    if (isAI) {
-        if (confidenceLevel === "High") score = 0.92;
-        else if (confidenceLevel === "Medium") score = 0.75;
-        else score = 0.55;
-    } else {
-        if (confidenceLevel === "High") score = 0.05; // Very Real
-        else if (confidenceLevel === "Medium") score = 0.25;
-        else score = 0.45;
+    // 4. HARD RULES & ASSERTIONS (Forbidden Combinations)
+    // ❌ Likely Real Image + Low confidence
+    if (confidenceLevel === "Low" && assessment.includes("Authentic")) {
+        console.warn("Assertion Failed: Authentic + Low. Correcting.");
+        confidenceLevel = "Medium";
+        percentage = 55;
+    }
+    // ❌ Screenshot + High confidence
+    if (structure.isScreenshot && confidenceLevel === "High") {
+        confidenceLevel = "Low";
+        percentage = 35;
+    }
+    // ❌ AI-Generated (Low signal) + Medium confidence
+    // (Handled by logic flow, but double check)
+    if (cameraSignal === 0 && textureSignal < 0.2 && confidenceLevel === "Medium") {
+        confidenceLevel = "Low";
+        percentage = 30;
     }
 
     return {
-        isAI,
+        isAI: confidenceLevel === "Low", // Backwards compat flag
         confidenceLevel,
-        score,
+        score: percentage, // Now returns integer 0-100
+        assessment,
         details: {
-            strongAIIndicators,
-            realSignals
+            cameraSignal,
+            textureSignal,
+            consistencySignal,
+            structure
         }
     };
 };

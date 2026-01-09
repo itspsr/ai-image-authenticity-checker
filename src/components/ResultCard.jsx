@@ -2,70 +2,61 @@ import React from 'react';
 import { CheckCircle, AlertTriangle, ShieldAlert } from 'lucide-react';
 
 const ResultCard = ({ result, startOver }) => {
-    const { isAI, probability, details } = result;
+    const { isAI, probability, rawScore, assessmentTitle, details } = result;
     const isFallback = details?.timeout || details?.note === "stability_fallback" || details?.note?.includes('Safe mode');
 
-    // FIX 2: CONFIDENCE LABEL (Strict Adherence to passed 'probability' if string)
-    // The new mlModel returns "High", "Medium", "Low" directly.
-    let confidenceLevel = "Medium";
+    // FIX: Use mandated 3-Tier Levels
+    const confidenceLevel = probability; // "High", "Medium", "Low"
+    const confidencePercent = rawScore || 50; // Fallback 50 if missing
 
-    if (typeof probability === 'string' && (probability === "High" || probability === "Medium" || probability === "Low")) {
-        confidenceLevel = probability;
-    } else {
-        // Legacy fallback or numeric handling
-        const probValue = parseFloat(probability);
-        if (!isNaN(probValue)) {
-            // Mapping for backward compat if numbers slip through
-            if (probValue > 80) confidenceLevel = "High";
-            else if (isAI) {
-                // For AI: >80 High, Else Low/Medium
-                confidenceLevel = probValue > 50 ? "Medium" : "Low";
-            } else {
-                // For Real: Low numbers = High Real Confidence. 
-                // BUT we shouldn't get numbers anymore with new engine.
-                confidenceLevel = "Medium";
-            }
-        }
-    }
-
-    // FIX 8: SAFETY ASSERTION (UI LAYER)
-    // Double check: if "Likely Real" (isAI == false) -> NEVER show Low
-    if (!isAI && confidenceLevel === "Low") {
-        confidenceLevel = "Medium";
-    }
-
-    // Colors
+    // Colors & Icons
     let statusColor = 'var(--text-secondary)';
     let StatusIcon = CheckCircle;
-    let headline = "Authenticity Assessment";
 
-    // FIX 1: RESULT TITLE FOR FALLBACK / SAFE MODE
+    // Headline handling
+    let headline = assessmentTitle || (isAI ? "Likely Non-Camera Image" : "Likely Authentic Camera Image");
+
     if (isFallback) {
         headline = "Preliminary Assessment: Likely Real Image";
-        statusColor = 'var(--text-secondary)'; // Neutral
+        statusColor = 'var(--text-secondary)';
         StatusIcon = ShieldAlert;
-    } else if (isAI) {
-        headline = "Assessment: Likely AI-Generated";
-        statusColor = '#f59e0b'; // Muted Orange
-        StatusIcon = AlertTriangle;
-    } else {
-        headline = "Assessment: Likely Real Camera Image";
-        statusColor = '#10b981'; // Muted Emerald
+    } else if (confidenceLevel === "High") {
+        statusColor = '#10b981'; // Emerald
         StatusIcon = CheckCircle;
+    } else if (confidenceLevel === "Medium") {
+        statusColor = '#fbbf24'; // Amber
+        // Differentiate icon if needed, or keep Check for "Real but Edited"
+        StatusIcon = isAI ? AlertTriangle : CheckCircle;
+    } else {
+        // Low Confidence (AI/Screenshot)
+        statusColor = '#ef4444'; // Red-ish/Orange for "Non-Camera"
+        StatusIcon = AlertTriangle;
     }
 
     return (
         <div className="glass-card" style={{ marginBottom: '20px', borderLeft: `4px solid ${statusColor}` }}>
-            {/* FIX 8: RESULT CARD HIERARCHY */}
+            {/* HEADLINE SECTION */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
                 <StatusIcon color={statusColor} size={40} />
                 <div>
                     <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '600', letterSpacing: '0.5px' }}>
                         {headline}
                     </h2>
-                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-                        Confidence Level: <strong style={{ color: 'white' }}>{confidenceLevel}</strong>
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
+                            Confidence: <strong style={{ color: 'white' }}>{confidenceLevel}</strong>
+                        </span>
+                        <span style={{
+                            background: 'rgba(255,255,255,0.1)',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            fontSize: '0.85rem',
+                            color: statusColor,
+                            fontWeight: 'bold'
+                        }}>
+                            {confidencePercent}%
+                        </span>
+                    </div>
                 </div>
             </div>
 
@@ -73,13 +64,15 @@ const ResultCard = ({ result, startOver }) => {
                 {details && (details.note === "stability_fallback" || details.timeout) ? (
                     <span style={{ color: '#fbbf24', display: 'flex', gap: '6px', alignItems: 'start' }}>
                         <i className="fas fa-info-circle" style={{ marginTop: '3px' }}></i>
-                        {/* FIX 4: SAFE FUNCTIONALITY EXPLANATION */}
                         Assessment based on partial signals for stability.
                     </span>
                 ) : (
-                    isAI
-                        ? "The image exhibits patterns consistent with generative AI, specifically in significant texture smoothness or repetition."
-                        : "The image exhibits characteristics consistent with optical capture. No strong generative AI artifacts were detected."
+                    // DYNAMIC DESCRIPTION
+                    confidenceLevel === "High"
+                        ? "Strong evidence of optical capture (metadata + sensor noise) with no manipulation detected."
+                        : confidenceLevel === "Medium"
+                            ? "Signs of optical capture present, but with potential editing, missing metadata, or format conversion."
+                            : "Lacks strong camera traits. Likely a screenshot, digital creation, or heavily synthesized image."
                 )}
             </p>
 
@@ -112,8 +105,8 @@ const ResultCard = ({ result, startOver }) => {
                 </div>
 
                 <p style={{ fontSize: '0.75rem', marginTop: '16px', opacity: 0.5, textAlign: 'center', fontStyle: 'italic' }}>
-                    {/* FIX 9: WORDING ALIGNMENT */}
-                    Confidence reflects evidence strength and signal agreement, not analysis completeness.
+                    {/* MANDATORY CAPTION */}
+                    "Confidence reflects strength of authenticity signals, not absolute certainty."
                 </p>
             </div>
 
@@ -125,9 +118,9 @@ const ResultCard = ({ result, startOver }) => {
                 Analyze Another Image
             </button>
 
-            {/* FIX 8: FINAL TRUST STATEMENT */}
+            {/* MANDATORY TRUST STATEMENT */}
             <p style={{ marginTop: '16px', fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'center', opacity: 0.6 }}>
-                This system prioritizes stability, privacy, and transparent decision-support over definitive classification.
+                This system prioritizes evidence-based confidence, user fairness, and decision support over definitive classification.
             </p>
         </div>
     );
