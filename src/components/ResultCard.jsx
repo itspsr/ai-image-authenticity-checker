@@ -76,14 +76,18 @@ const ResultCard = ({ result, startOver }) => {
                 )}
             </p>
 
-            {/* CAPTURE SOURCE (INFERRED) */}
+            {/* CAPTURE SOURCE */}
             {result.captureSource && (
                 <div style={{ margin: '20px 0', padding: '12px 16px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', borderLeft: '3px solid var(--text-secondary)' }}>
-                    <h4 style={{ margin: '0 0 4px 0', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px', opacity: 0.7 }}>Capture Source (Inferred)</h4>
+                    <h4 style={{ margin: '0 0 4px 0', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px', opacity: 0.7 }}>Capture Source</h4>
                     <div style={{ fontSize: '1.1rem', fontWeight: '500', color: '#fff' }}>
                         {result.captureSource.category}
-                        {result.captureSource.subCategory && <span style={{ fontSize: '0.9rem', opacity: 0.8, marginLeft: '8px', fontWeight: 'normal' }}>({result.captureSource.subCategory})</span>}
                     </div>
+                    {result.captureSource.subCategory && (
+                        <div style={{ fontSize: '0.85rem', marginTop: '4px', opacity: 0.8, color: 'var(--text-secondary)' }}>
+                            • {result.captureSource.subCategory}
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -157,7 +161,7 @@ const ResultCard = ({ result, startOver }) => {
 
             {/* MANDATORY TRUST STATEMENT */}
             <p style={{ marginTop: '16px', fontSize: '0.7rem', color: 'var(--text-secondary)', textAlign: 'center', opacity: 0.6 }}>
-                Capture source inference is probabilistic and based on visual patterns. This system prioritizes evidence-based confidence, user fairness, and decision support over definitive classification.
+                Detection is based on device metadata and visual consistency.
             </p>
         </div>
     );

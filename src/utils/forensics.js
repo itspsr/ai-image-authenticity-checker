@@ -51,9 +51,9 @@ export const analyzeDCT = (imgElement) => {
         const start = performance.now();
         const { ctx, w, h } = getGrayDataSampled(imgElement);
 
-        // Randomly sample MAX 120 blocks of 8x8
+        // Randomly sample MAX 64 blocks of 8x8 (As per "Lightweight" requirement)
         const BLOCK_SIZE = 8;
-        const MA_BLOCKS = 120;
+        const MA_BLOCKS = 64;
         const blocksToScan = Math.min(MA_BLOCKS, Math.floor((w * h) / (BLOCK_SIZE * BLOCK_SIZE)));
 
         let highFreqEnergy = 0;
